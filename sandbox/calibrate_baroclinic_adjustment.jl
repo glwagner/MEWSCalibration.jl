@@ -1,9 +1,11 @@
 using Oceananigans
 using Oceananigans.Units
+using Oceananigans.Architectures: arch_array
 using Oceananigans.Models.HydrostaticFreeSurfaceModels: SliceEnsembleSize
 using Oceananigans.TurbulenceClosures.MEWSVerticalDiffusivities: MEWSVerticalDiffusivity
 using ParameterEstimocean
 using ParameterEstimocean.PseudoSteppingSchemes: Kovachki2018InitialConvergenceRatio
+using CUDA
 
 filename = "simple_baroclinic_adjustment_dy100km_zonal_average.jld2"
 
@@ -11,7 +13,7 @@ artifacts_url = "https://github.com/glwagner/MEWSCalibrationArtifacts/raw/main/b
 filename_url = joinpath(artifacts_url, filename)
 isfile(filename) || Base.download(filename_url, filename)
 
-arch = CPU()
+arch = GPU()
 Nens = 20
 Ly = 2000kilometers
 Lz = 1kilometer
@@ -19,20 +21,16 @@ Ny = 256
 Nz = 32
 Cᴰ = 2e-3
 
-regrid = RectilinearGrid(arch,
-                         size = (64, 32),
+regrid = RectilinearGrid(size = (64, 32),
                          topology = (Flat, Bounded, Bounded),
                          y = (-Ly/2, Ly/2),
                          z = (-Lz, 0),
                          halo = (3, 3))
 
-space_transformation = SpaceIndices(x=:, y=1:4:Ny, z=:)
-#transformation = Transformation(; space=space_transformation)
 transformation = Transformation()
-field_names = tuple(:b) # (:b, :K)
-times = [10days, 20days, 30days]
+field_names = tuple(:b)
+times = [10days, 20day, 30days]
 observations = SyntheticObservations(filename; times, transformation, field_names, regrid)
-obs_with_kinetic_energy = SyntheticObservations(filepath; times, transformation, field_names=(:b, :k), regrid)
 
 @show observations
 
@@ -50,7 +48,7 @@ ensemble_grid = RectilinearGrid(arch,
 @show ensemble_grid
 
 mews = MEWSVerticalDiffusivity(; Cᴰ)
-mews_ensemble = [deepcopy(mews) for ω = 1:Nens]
+mews_ensemble = arch_array(arch, [deepcopy(mews) for ω = 1:Nens])
 
 ensemble_model = HydrostaticFreeSurfaceModel(grid = ensemble_grid,
                                              tracers = (:b, :K),
@@ -72,10 +70,14 @@ priors = (;
 
 free_parameters = FreeParameters(priors)
 
+obs_with_kinetic_energy = SyntheticObservations(filename; times, field_names=(:b, :K), regrid)
+Kᵢ = obs_with_kinetic_energy.field_time_serieses.K[1]
+Arr = arch isa GPU ? CuArray : Array
+Kᵢ = Arr(interior(Kᵢ, :, :, :))
+
 function initialize_simulation(sim, parameters)
     K = sim.model.tracers.K
-    Kᵢ = obs_with_kinetic_energy.field_time_serieses.k[1]
-    interior(K, :, :, :) .= interior(Kᵢ, :, :, :)
+    interior(K, :, :, :) .= Kᵢ
     return nothing
 end
     
