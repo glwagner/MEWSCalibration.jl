@@ -5,9 +5,11 @@ using Oceananigans.TurbulenceClosures.MEWSVerticalDiffusivities: MEWSVerticalDif
 using ParameterEstimocean
 using ParameterEstimocean.PseudoSteppingSchemes: Kovachki2018InitialConvergenceRatio
 
+filename = "simple_baroclinic_adjustment_dy100km_zonal_average.jld2"
 
-filepath = "simple_baroclinic_adjustment_zonal_average.jld2"
-new_filepath = "baroclinic_adjustment_zonal_average.jld2"
+artifacts_url = "https://github.com/glwagner/MEWSCalibrationArtifacts/raw/main/baroclinic_adjustment/"
+filename_url = joinpath(artifacts_url, filename)
+isfile(filename) || Base.download(filename_url, filename)
 
 arch = CPU()
 Nens = 20
@@ -29,7 +31,7 @@ space_transformation = SpaceIndices(x=:, y=1:4:Ny, z=:)
 transformation = Transformation()
 field_names = tuple(:b) # (:b, :K)
 times = [10days, 20days, 30days]
-observations = SyntheticObservations(filepath; times, transformation, field_names, regrid)
+observations = SyntheticObservations(filename; times, transformation, field_names, regrid)
 obs_with_kinetic_energy = SyntheticObservations(filepath; times, transformation, field_names=(:b, :k), regrid)
 
 @show observations
