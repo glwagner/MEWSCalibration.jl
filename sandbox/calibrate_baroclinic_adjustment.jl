@@ -14,14 +14,14 @@ filename_url = joinpath(artifacts_url, filename)
 isfile(filename) || Base.download(filename_url, filename)
 
 arch = GPU()
-Nens = 20
+Nens = 200
 Ly = 2000kilometers
 Lz = 1kilometer
-Ny = 256
+Ny = 128
 Nz = 32
 Cᴰ = 2e-3
 
-regrid = RectilinearGrid(size = (64, 32),
+regrid = RectilinearGrid(size = (128, 32),
                          topology = (Flat, Bounded, Bounded),
                          y = (-Ly/2, Ly/2),
                          z = (-Lz, 0),
@@ -62,10 +62,10 @@ ensemble_model = HydrostaticFreeSurfaceModel(grid = ensemble_grid,
 simulation = Simulation(ensemble_model; Δt=20minutes, stop_time=times[end])
 
 priors = (;
-    Cʰ  = ScaledLogitNormal(bounds = (0.0, 20.0)),
-    Cᴷʰ = ScaledLogitNormal(bounds = (0.0, 20.0)),
-    Cᴷᶻ = ScaledLogitNormal(bounds = (0.0, 20.0)),
-    Cⁿ  = ScaledLogitNormal(bounds = (0.0, 20.0)),
+    Cʰ  = ScaledLogitNormal(bounds = (0.0, 100.0)),
+    Cᴷʰ = ScaledLogitNormal(bounds = (0.0, 100.0)),
+    Cᴷᶻ = ScaledLogitNormal(bounds = (0.0, 100.0)),
+    Cⁿ  = ScaledLogitNormal(bounds = (0.0, 100.0)),
 )
 
 free_parameters = FreeParameters(priors)
@@ -96,7 +96,6 @@ eki = EnsembleKalmanInversion(calibration; noise_covariance, resampler, pseudo_s
 
 @show eki
 
-for n = 1:10
+for n = 1:100
     iterate!(eki)
     @show eki.iteration_summaries[end]
-end
